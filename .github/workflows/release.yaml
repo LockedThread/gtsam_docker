@@ -80,6 +80,7 @@ jobs:
   create-release:
     permissions:
       pull-requests: write 
+      contents: write
     needs:
       - release
     runs-on: ubuntu-latest
