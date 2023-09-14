@@ -78,6 +78,8 @@ jobs:
           title: ${{ inputs.version }}
 
   create-release:
+    permissions:
+      pull-requests: write 
     needs:
       - release
     runs-on: ubuntu-latest
