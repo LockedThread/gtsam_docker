@@ -32,6 +32,8 @@ jobs:
 
   semver-version:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     needs:
       - get-labels
     outputs:
@@ -45,7 +47,7 @@ jobs:
           prefix: 'v'
   release:
     permissions:
-      contents: read
+      contents: write
       packages: write
     needs:
       - semver-version
