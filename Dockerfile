@@ -54,20 +54,9 @@ RUN make -j4 install && \
     make python-install && \
     make clean
 
-RUN python3 python/setup.py bdist_wheel
-
-RUN cp /usr/src/gtsam/build/dist/gtsam-4.2a9-py3-none-any.whl /usr/gtsam-4.2a9-py3-none-any.whl
-
-RUN rm -rf /usr/src/gtsam/
-
 RUN apt-get clean && \
     rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
-# Get the base python image from Docker Hub
-FROM python:${PYTHON_VERSION}-slim-bullseye as runtime
-
-COPY --from=gtsam /usr/gtsam-4.2a9-py3-none-any.whl /gtsam-4.2a9-py3-none-any.whl
-
-RUN pip install /gtsam-4.2a9-py3-none-any.whl
+RUN ldconfig
 
 CMD ["bash"]
