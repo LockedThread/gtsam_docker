@@ -16,3 +16,9 @@ Types of Changes:
 -->
 
 ## [Unreleased]
+
+## [1.0.0] - 2023-09-14
+
+[Unreleased]: https://github.com/LockedThread/gtsam_docker/compare/1.0.0...HEAD
+
+[1.0.0]: https://github.com/LockedThread/gtsam_docker/compare/fa677d073afcc3bb88ed7111486d31bac2915afb...1.0.0
