@@ -49,6 +49,7 @@ jobs:
     permissions:
       contents: write
       packages: write
+      pull-requests: write 
     needs:
       - semver-version
     uses: ./.github/workflows/release.yaml
