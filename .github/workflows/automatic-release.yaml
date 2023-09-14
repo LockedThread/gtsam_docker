@@ -44,6 +44,9 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           prefix: 'v'
   release:
+    permissions:
+      contents: read
+      packages: write
     needs:
       - semver-version
     uses: ./.github/workflows/release.yaml
