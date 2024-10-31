@@ -4,12 +4,12 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Version Number (semver: 1.2.3)'
+        description: "Version Number (semver: 1.2.3)"
         required: true
   workflow_call:
     inputs:
       version:
-        description: 'Version Number (semver: 1.2.3)'
+        description: "Version Number (semver: 1.2.3)"
         required: true
         type: string
 env:
@@ -26,6 +26,11 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
       #Login against a Docker registry except on PR
       #https://github.com/docker/login-action
@@ -80,7 +85,7 @@ jobs:
 
   create-release:
     permissions:
-      pull-requests: write 
+      pull-requests: write
       contents: write
     needs:
       - release
