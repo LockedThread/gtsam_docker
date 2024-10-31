@@ -12,7 +12,7 @@ RUN apt-get -y update && \
     rm -rf /var/lib/apt/lists/*
 
 # Use git to clone gtsam and specific GTSAM version 
-FROM alpine/git:2.45.1 as gtsam-clone
+FROM alpine/git:2.45.2 as gtsam-clone
 
 ARG GTSAM_VERSION=4.2.0
 WORKDIR /usr/src/
