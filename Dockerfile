@@ -1,15 +1,47 @@
+FROM debian:bullseye as dependencies
 ARG PYTHON_VERSION=3.11.2
-
-# Get the base python image from Docker Hub
-FROM python:${PYTHON_VERSION}-bullseye as dependencies
 
 # Disable GUI prompts
 ENV DEBIAN_FRONTEND noninteractive
 
-# Update apps on the base image and install necessary packages
-RUN apt-get -y update && \
-    apt-get -y install build-essential apt-utils libboost-all-dev cmake libtbb-dev && \
-    rm -rf /var/lib/apt/lists/*
+# Install required build dependencies
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    wget \
+    libssl-dev \
+    libbz2-dev \
+    libreadline-dev \
+    libsqlite3-dev \
+    libffi-dev \
+    zlib1g-dev \
+    libncursesw5-dev \
+    tk-dev \
+    libgdbm-dev \
+    liblzma-dev \
+    apt-utils \
+    libboost-all-dev \
+    cmake \
+    libtbb-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# Set working directory
+WORKDIR /usr/src
+
+# Install Python with --enable-shared
+RUN wget https://www.python.org/ftp/python/${PYTHON_VERSION}/Python-${PYTHON_VERSION}.tgz && \
+    tar xvf Python-${PYTHON_VERSION}.tgz && \
+    cd Python-${PYTHON_VERSION} && \
+    ./configure --enable-optimizations --with-lto --enable-shared && \
+    make -j$(nproc) && \
+    make install && \
+    cd .. && \
+    rm -rf Python-${PYTHON_VERSION} Python-${PYTHON_VERSION}.tgz && \
+    ldconfig
+
+# Ensure /usr/local/bin is in the PATH
+ENV PATH="/usr/local/bin:${PATH}"
+
+RUN python3 -m pip install --upgrade pip
 
 # Use git to clone gtsam and specific GTSAM version 
 FROM alpine/git:2.47.2 as gtsam-clone
