@@ -4,6 +4,11 @@ ARG PYTHON_VERSION=3.11.2
 # Disable GUI prompts
 ENV DEBIAN_FRONTEND noninteractive
 
+
+RUN rm /var/lib/dpkg/info/libc-bin.*
+RUN apt-get clean && apt-get update
+RUN apt-get -y install libc-bin
+
 # Install required build dependencies
 RUN apt-get update && apt-get install -y \
     build-essential \
