@@ -69,7 +69,7 @@ COPY --from=gtsam-clone /usr/src/gtsam /usr/src/gtsam
 WORKDIR /usr/src/gtsam/build
 
 # Needed to link with GTSAM
-RUN echo 'export LD_LIBRARY_PATH=/usr/local/lib:LD_LIBRARY_PATH' >> /root/.bashrc
+RUN echo "export LD_LIBRARY_PATH=/usr/local/lib:\$LD_LIBRARY_PATH" >> /root/.bashrc
 
 # Install python wrapper requirements
 RUN python3 -m pip install -U -r /usr/src/gtsam/python/requirements.txt
