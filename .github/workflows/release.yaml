@@ -76,21 +76,23 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # Create a multi-arch manifest for the "latest" tag
       - name: Create multi-arch manifest for latest
         run: |
-          docker manifest create ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest \
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest-amd64 \
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest-arm64
-          docker manifest push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+          # Convert IMAGE_NAME to lowercase
+          LOWER_IMAGE_NAME=$(echo "${IMAGE_NAME}" | tr '[:upper:]' '[:lower:]')
+          docker manifest create $REGISTRY/${LOWER_IMAGE_NAME}:latest \
+            $REGISTRY/${LOWER_IMAGE_NAME}:latest-amd64 \
+            $REGISTRY/${LOWER_IMAGE_NAME}:latest-arm64
+          docker manifest push $REGISTRY/${LOWER_IMAGE_NAME}:latest
 
-      # Create a multi-arch manifest for the version tag
       - name: Create multi-arch manifest for version tag
         run: |
-          docker manifest create ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ inputs.version }} \
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ inputs.version }}-amd64 \
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ inputs.version }}-arm64
-          docker manifest push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ inputs.version }}
+          # Convert IMAGE_NAME to lowercase
+          LOWER_IMAGE_NAME=$(echo "${IMAGE_NAME}" | tr '[:upper:]' '[:lower:]')
+          docker manifest create $REGISTRY/${LOWER_IMAGE_NAME}:${{ inputs.version }} \
+            $REGISTRY/${LOWER_IMAGE_NAME}:${{ inputs.version }}-amd64 \
+            $REGISTRY/${LOWER_IMAGE_NAME}:${{ inputs.version }}-arm64
+          docker manifest push $REGISTRY/${LOWER_IMAGE_NAME}:${{ inputs.version }}
 
   release:
     needs: manifest
