@@ -76,7 +76,7 @@ RUN python3 -m pip install -U -r /usr/src/gtsam/python/requirements.txt
 
 # Run cmake
 RUN cmake \
-    -DCMAKE_BUILD_TYPE=Release \
+    -DCMAKE_BUILD_TYPE=RelWithDebInfo \
     -DGTSAM_WITH_EIGEN_MKL=OFF \
     -DGTSAM_BUILD_EXAMPLES_ALWAYS=OFF \
     -DGTSAM_BUILD_TIMING_ALWAYS=OFF \
