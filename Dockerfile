@@ -27,7 +27,41 @@ RUN apt-get update && apt-get install -y \
     libboost-all-dev \
     cmake \
     libtbb-dev \
+    flex \
+    bison \
+    dejagnu \
+    libmpc-dev \
+    libmpfr-dev \
+    libgmp-dev \
     && rm -rf /var/lib/apt/lists/*
+
+
+# Download and build GCC 13.4
+RUN wget https://ftp.gnu.org/gnu/gcc/gcc-13.4.0/gcc-13.4.0.tar.gz && \
+    tar -xzf gcc-13.4.0.tar.gz && \
+    cd gcc-13.4.0 && \
+    ./contrib/download_prerequisites && \
+    mkdir build && \
+    cd build && \
+    ../configure --prefix=/usr/local/gcc-13.4.0 \
+                 --enable-languages=c,c++ \
+                 --disable-multilib \
+                 --disable-bootstrap \
+                 --enable-checking=release && \
+    make -j$(nproc) && \
+    make install && \
+    cd ../.. && \
+    rm -rf gcc-13.4.0 gcc-13.4.0.tar.gz
+
+# Set up GCC 13.4 as the default compiler
+ENV PATH="/usr/local/gcc-13.4.0/bin:${PATH}"
+ENV LD_LIBRARY_PATH="/usr/local/gcc-13.4.0/lib64:${LD_LIBRARY_PATH}"
+ENV CC="/usr/local/gcc-13.4.0/bin/gcc"
+ENV CXX="/usr/local/gcc-13.4.0/bin/g++"
+
+# Create symlinks for easier access
+RUN ln -sf /usr/local/gcc-13.4.0/bin/gcc /usr/local/bin/gcc && \
+    ln -sf /usr/local/gcc-13.4.0/bin/g++ /usr/local/bin/g++
 
 # Install Make 4.4.1
 RUN wget https://ftp.gnu.org/gnu/make/make-4.4.1.tar.gz && \
