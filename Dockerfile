@@ -34,10 +34,20 @@ RUN wget https://ftp.gnu.org/gnu/make/make-4.4.1.tar.gz && \
     tar -xzf make-4.4.1.tar.gz && \
     cd make-4.4.1 && \
     ./configure --prefix=/usr/local && \
-    make && \
+    make -j$(nproc) && \
     make install && \
     cd .. && \
     rm -rf make-4.4.1 make-4.4.1.tar.gz
+
+# Install CMake 4.0.3
+RUN wget https://github.com/Kitware/CMake/releases/download/v4.0.3/cmake-4.0.3.tar.gz && \
+    tar -xzf cmake-4.0.3.tar.gz && \
+    cd cmake-4.0.3 && \
+    ./bootstrap --prefix=/usr/local && \
+    make -j$(nproc) && \
+    make install && \
+    cd .. && \
+    rm -rf cmake-4.0.3 cmake-4.0.3.tar.gz
 
 # Set working directory
 WORKDIR /usr/src
@@ -59,7 +69,7 @@ ENV PATH="/usr/local/bin:${PATH}"
 RUN python3 -m pip install --upgrade pip
 
 # Use git to clone gtsam and specific GTSAM version 
-FROM alpine/git:2.47.2 as gtsam-clone
+FROM alpine/git:2.49.0 as gtsam-clone
 
 ARG GTSAM_VERSION=4.2.0
 WORKDIR /usr/src/
@@ -94,10 +104,11 @@ RUN cmake \
     -DGTSAM_BUILD_PYTHON=ON \
     -DGTSAM_BUILD_CONVENIENCE_LIBRARIES=OFF \
     -DGTSAM_PYTHON_VERSION=${PYTHON_VERSION} \
+    -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
     ..
 
 # Make install and clean up
-RUN make -j4 install && \
+RUN make -j$(nproc) install && \
     make python-install && \
     make clean
 
