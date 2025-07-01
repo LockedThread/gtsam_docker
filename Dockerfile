@@ -29,6 +29,16 @@ RUN apt-get update && apt-get install -y \
     libtbb-dev \
     && rm -rf /var/lib/apt/lists/*
 
+# Install Make 4.4.1
+RUN wget https://ftp.gnu.org/gnu/make/make-4.4.1.tar.gz && \
+    tar -xzf make-4.4.1.tar.gz && \
+    cd make-4.4.1 && \
+    ./configure --prefix=/usr/local && \
+    make && \
+    make install && \
+    cd .. && \
+    rm -rf make-4.4.1 make-4.4.1.tar.gz
+
 # Set working directory
 WORKDIR /usr/src
 
