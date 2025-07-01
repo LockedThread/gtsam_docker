@@ -27,10 +27,6 @@ RUN apt-get update && apt-get install -y \
     libboost-all-dev \
     cmake \
     libtbb-dev \
-    && rm -rf /var/lib/apt/lists/*
-
-# Install GCC 13.4 from source
-RUN apt-get update && apt-get install -y \
     flex \
     bison \
     dejagnu \
@@ -38,6 +34,7 @@ RUN apt-get update && apt-get install -y \
     libmpfr-dev \
     libgmp-dev \
     && rm -rf /var/lib/apt/lists/*
+
 
 # Download and build GCC 13.4
 RUN wget https://ftp.gnu.org/gnu/gcc/gcc-13.4.0/gcc-13.4.0.tar.gz && \
