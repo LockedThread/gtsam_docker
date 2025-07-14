@@ -103,7 +103,7 @@ ENV PATH="/usr/local/bin:${PATH}"
 RUN python3 -m pip install --upgrade pip
 
 # Use git to clone gtsam and specific GTSAM version 
-FROM alpine/git:2.49.0 as gtsam-clone
+FROM alpine/git:2.49.1 as gtsam-clone
 
 ARG GTSAM_VERSION=4.2.0
 WORKDIR /usr/src/
