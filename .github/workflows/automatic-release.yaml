@@ -22,7 +22,7 @@ jobs:
     outputs:
       labels: ${{ steps.match-label.outputs.match }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - id: match-label
         shell: bash
         run: |
