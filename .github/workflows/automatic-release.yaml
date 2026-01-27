@@ -22,7 +22,7 @@ jobs:
     outputs:
       labels: ${{ steps.match-label.outputs.match }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - id: match-label
         shell: bash
         run: |
@@ -39,7 +39,7 @@ jobs:
     outputs:
       version: ${{ steps.version.outputs.version }}
     steps:
-      - uses: zwaldowski/semver-release-action@v4
+      - uses: zwaldowski/semver-release-action@v6
         id: version
         with:
           bump: ${{ needs.get-labels.outputs.labels }}
