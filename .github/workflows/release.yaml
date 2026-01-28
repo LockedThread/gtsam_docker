@@ -16,12 +16,17 @@ on:
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
+  PYTHON_BASE_IMAGE_NAME: ${{ github.repository }}/python-base
 
 jobs:
   build:
     strategy:
       matrix:
-        platform: [ "linux/amd64", "linux/arm64" ]
+        include:
+          - platform: linux/amd64
+            arch: amd64
+          - platform: linux/arm64
+            arch: arm64
     # Use GitHub-hosted runner for amd64; arm64 uses partner runner (ensure ubuntu-24.04-arm is enabled for the repo/org)
     runs-on: ${{ matrix.platform == 'linux/arm64' && 'ubuntu-24.04-arm' || 'ubuntu-latest' }}
     permissions:
@@ -42,6 +47,14 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Get Python version and base image
+        id: python
+        run: |
+          VERSION=$(grep -oP 'ARG PYTHON_VERSION=\K[0-9.]+' Dockerfile.python-base)
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+          LOWER_BASE_IMAGE=$(echo "${{ env.PYTHON_BASE_IMAGE_NAME }}" | tr '[:upper:]' '[:lower:]')
+          echo "base_image=${LOWER_BASE_IMAGE}" >> $GITHUB_OUTPUT
+
       # Use docker/metadata-action to generate tags with an architecture suffix
       - name: Extract Docker metadata
         id: meta
@@ -49,8 +62,8 @@ jobs:
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
-            type=raw,value=latest-${{ matrix.platform == 'linux/amd64' && 'amd64' || 'arm64' }}
-            type=raw,value=${{ inputs.version }}-${{ matrix.platform == 'linux/amd64' && 'amd64' || 'arm64' }}
+            type=raw,value=latest-${{ matrix.arch }}
+            type=raw,value=${{ inputs.version }}-${{ matrix.arch }}
 
       - name: Build and push Docker image for ${{ matrix.platform }}
         uses: docker/build-push-action@v6
@@ -61,6 +74,8 @@ jobs:
           platforms: ${{ matrix.platform }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            PYTHON_BASE_IMAGE=${{ env.REGISTRY }}/${{ steps.python.outputs.base_image }}:${{ steps.python.outputs.version }}-trixie-${{ matrix.arch }}
 
   validate:
     needs: build

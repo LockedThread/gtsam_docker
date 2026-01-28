@@ -1,0 +1,117 @@
+name: Build Python Base Image
+
+on:
+  workflow_dispatch:
+    inputs:
+      python_version:
+        description: "Python version to build"
+        required: true
+        default: "3.11.2"
+  push:
+    paths:
+      - "Dockerfile.python-base"
+    branches:
+      - main
+      - development
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}/python-base
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        platform: ["linux/amd64", "linux/arm64"]
+    runs-on: ${{ matrix.platform == 'linux/arm64' && 'ubuntu-24.04-arm' || 'ubuntu-latest' }}
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log into registry ${{ env.REGISTRY }}
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set Python version
+        id: python
+        run: |
+          # Use input if provided, otherwise extract from Dockerfile.python-base
+          if [ -n "${{ inputs.python_version }}" ]; then
+            echo "version=${{ inputs.python_version }}" >> $GITHUB_OUTPUT
+          else
+            VERSION=$(grep -oP 'ARG PYTHON_VERSION=\K[0-9.]+' Dockerfile.python-base)
+            echo "version=${VERSION}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Extract Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=raw,value=${{ steps.python.outputs.version }}-trixie-${{ matrix.platform == 'linux/amd64' && 'amd64' || 'arm64' }}
+
+      - name: Build and push Python base image for ${{ matrix.platform }}
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile.python-base
+          push: true
+          provenance: false
+          platforms: ${{ matrix.platform }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            PYTHON_VERSION=${{ steps.python.outputs.version }}
+
+  manifest:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Log into registry ${{ env.REGISTRY }}
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set Python version
+        id: python
+        run: |
+          if [ -n "${{ inputs.python_version }}" ]; then
+            echo "version=${{ inputs.python_version }}" >> $GITHUB_OUTPUT
+          else
+            VERSION=$(grep -oP 'ARG PYTHON_VERSION=\K[0-9.]+' Dockerfile.python-base)
+            echo "version=${VERSION}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create multi-arch manifest
+        run: |
+          LOWER_IMAGE_NAME=$(echo "${IMAGE_NAME}" | tr '[:upper:]' '[:lower:]')
+          PYTHON_VERSION="${{ steps.python.outputs.version }}"
+          
+          docker manifest create $REGISTRY/${LOWER_IMAGE_NAME}:${PYTHON_VERSION}-trixie \
+            $REGISTRY/${LOWER_IMAGE_NAME}:${PYTHON_VERSION}-trixie-amd64 \
+            $REGISTRY/${LOWER_IMAGE_NAME}:${PYTHON_VERSION}-trixie-arm64
+          docker manifest push $REGISTRY/${LOWER_IMAGE_NAME}:${PYTHON_VERSION}-trixie
+          
+          # Also tag as latest
+          docker manifest create $REGISTRY/${LOWER_IMAGE_NAME}:latest \
+            $REGISTRY/${LOWER_IMAGE_NAME}:${PYTHON_VERSION}-trixie-amd64 \
+            $REGISTRY/${LOWER_IMAGE_NAME}:${PYTHON_VERSION}-trixie-arm64
+          docker manifest push $REGISTRY/${LOWER_IMAGE_NAME}:latest
