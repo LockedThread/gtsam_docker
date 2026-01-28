@@ -74,8 +74,9 @@ COPY --from=gtsam-clone /usr/src/gtsam /usr/src/gtsam
 
 WORKDIR /usr/src/gtsam/build
 
-# Install python wrapper requirements
-RUN python3 -m pip install --no-cache-dir -U -r /usr/src/gtsam/python/requirements.txt
+# Install python wrapper requirements, then pin numpy for GTSAM ABI compatibility
+RUN python3 -m pip install --no-cache-dir -U -r /usr/src/gtsam/python/requirements.txt && \
+    python3 -m pip install --no-cache-dir "numpy==1.26.4"
 
 # Run cmake
 RUN cmake \
@@ -93,8 +94,8 @@ RUN cmake \
 # Build, install, strip binaries, and clean in one layer to reduce image size
 RUN make -j$(nproc) install && \
     make python-install && \
-    find /usr/local -type f \( -name "*.so" -o -name "*.so.*" \) -exec strip --strip-unneeded {} \; 2>/dev/null || true && \
-    find /usr/local/bin /usr/local/lib -executable -type f -exec strip --strip-unneeded {} \; 2>/dev/null || true && \
+    #find /usr/local -type f \( -name "*.so" -o -name "*.so.*" \) -exec strip --strip-unneeded {} \; 2>/dev/null || true && \
+    #find /usr/local/bin /usr/local/lib -executable -type f -exec strip --strip-unneeded {} \; 2>/dev/null || true && \
     make clean && \
     ldconfig
 
@@ -110,28 +111,14 @@ ENV DEBIAN_FRONTEND=noninteractive
 ENV PATH="/usr/local/bin:${PATH}"
 ENV LD_LIBRARY_PATH=/usr/local/lib
 
-# Runtime libs only (no -dev, no build-essential). Match what Python + GTSAM link to.
-# Verify with: ldd /usr/local/lib/libgtsam.so /usr/local/bin/python3.11 (in build image)
+# Runtime libs only. Python binary (ldd python3.11) needs only libc/libm/libpython; GTSAM needs Boost + TBB (see scripts/audit-runtime-deps.sh).
+# Add back libssl3t64 libbz2-1.0 libreadline8t64 libsqlite3-0 libffi8 zlib1g libncursesw6 if you import ssl/sqlite3/readline/etc.
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
-    libssl3t64 \
-    libbz2-1.0 \
-    libreadline8t64 \
-    libsqlite3-0 \
-    libffi8 \
-    zlib1g \
-    libncursesw6 \
     libtbb12 \
-    libgmp10 \
-    libmpfr6 \
-    libmpc3 \
+    libtbbmalloc2 \
     libboost-serialization1.83.0 \
-    libboost-system1.83.0 \
-    libboost-thread1.83.0 \
-    libboost-date-time1.83.0 \
     libboost-filesystem1.83.0 \
-    libboost-chrono1.83.0 \
-    libboost-atomic1.83.0 \
     libboost-timer1.83.0 \
     && rm -rf /var/lib/apt/lists/*
 
