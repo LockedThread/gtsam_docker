@@ -1,16 +1,13 @@
-FROM debian:bullseye as dependencies
+# Default build produces the "runtime" stage (slim). Use --target gtsam for a dev image with build tools and shell.
+FROM debian:trixie-20260112 AS dependencies
 ARG PYTHON_VERSION=3.11.2
 
 # Disable GUI prompts
-ENV DEBIAN_FRONTEND noninteractive
+ENV DEBIAN_FRONTEND=noninteractive
 
-
-RUN rm /var/lib/dpkg/info/libc-bin.*
-RUN apt-get clean && apt-get update
-RUN apt-get -y install libc-bin
-
-# Install required build dependencies
-RUN apt-get update && apt-get install -y \
+# Install required build dependencies (single update for better layer caching)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
     build-essential \
     wget \
     libssl-dev \
@@ -33,55 +30,8 @@ RUN apt-get update && apt-get install -y \
     libmpc-dev \
     libmpfr-dev \
     libgmp-dev \
+    make \
     && rm -rf /var/lib/apt/lists/*
-
-
-# Download and build GCC 13.4
-RUN wget https://ftp.gnu.org/gnu/gcc/gcc-13.4.0/gcc-13.4.0.tar.gz && \
-    tar -xzf gcc-13.4.0.tar.gz && \
-    cd gcc-13.4.0 && \
-    ./contrib/download_prerequisites && \
-    mkdir build && \
-    cd build && \
-    ../configure --prefix=/usr/local/gcc-13.4.0 \
-                 --enable-languages=c,c++ \
-                 --disable-multilib \
-                 --disable-bootstrap \
-                 --enable-checking=release && \
-    make -j$(nproc) && \
-    make install && \
-    cd ../.. && \
-    rm -rf gcc-13.4.0 gcc-13.4.0.tar.gz
-
-# Set up GCC 13.4 as the default compiler
-ENV PATH="/usr/local/gcc-13.4.0/bin:${PATH}"
-ENV LD_LIBRARY_PATH="/usr/local/gcc-13.4.0/lib64:${LD_LIBRARY_PATH}"
-ENV CC="/usr/local/gcc-13.4.0/bin/gcc"
-ENV CXX="/usr/local/gcc-13.4.0/bin/g++"
-
-# Create symlinks for easier access
-RUN ln -sf /usr/local/gcc-13.4.0/bin/gcc /usr/local/bin/gcc && \
-    ln -sf /usr/local/gcc-13.4.0/bin/g++ /usr/local/bin/g++
-
-# Install Make 4.4.1
-RUN wget https://ftp.gnu.org/gnu/make/make-4.4.1.tar.gz && \
-    tar -xzf make-4.4.1.tar.gz && \
-    cd make-4.4.1 && \
-    ./configure --prefix=/usr/local && \
-    make -j$(nproc) && \
-    make install && \
-    cd .. && \
-    rm -rf make-4.4.1 make-4.4.1.tar.gz
-
-# Install CMake 4.0.3
-RUN wget https://github.com/Kitware/CMake/releases/download/v4.0.3/cmake-4.0.3.tar.gz && \
-    tar -xzf cmake-4.0.3.tar.gz && \
-    cd cmake-4.0.3 && \
-    ./bootstrap --prefix=/usr/local && \
-    make -j$(nproc) && \
-    make install && \
-    cd .. && \
-    rm -rf cmake-4.0.3 cmake-4.0.3.tar.gz
 
 # Set working directory
 WORKDIR /usr/src
@@ -100,33 +50,33 @@ RUN wget https://www.python.org/ftp/python/${PYTHON_VERSION}/Python-${PYTHON_VER
 # Ensure /usr/local/bin is in the PATH
 ENV PATH="/usr/local/bin:${PATH}"
 
-RUN python3 -m pip install --upgrade pip
+RUN python3 -m pip install --no-cache-dir --upgrade pip
 
 # Use git to clone gtsam and specific GTSAM version 
-FROM alpine/git:2.52.0 as gtsam-clone
+FROM alpine/git:2.52.0 AS gtsam-clone
 
 ARG GTSAM_VERSION=4.2.0
 WORKDIR /usr/src/
 
-# Clone GTSAM and checkout to given GTSAM_VERSION tag
-RUN git clone --no-checkout https://github.com/borglab/gtsam.git && \
-    cd gtsam && \
-    git fetch origin tag ${GTSAM_VERSION} && \
-    git checkout ${GTSAM_VERSION}
+# Shallow clone specific tag for smaller, faster fetch
+RUN git clone --depth 1 --branch ${GTSAM_VERSION} https://github.com/borglab/gtsam.git
 
 # Create new stage called gtsam for GTSAM building
-FROM dependencies as gtsam
+FROM dependencies AS gtsam
+
+ARG PYTHON_VERSION=3.11.2
+
+# Needed to link with GTSAM (ENV works in non-interactive shells; .bashrc does not)
+ENV LD_LIBRARY_PATH=/usr/local/lib
 
 # Move gtsam data
 COPY --from=gtsam-clone /usr/src/gtsam /usr/src/gtsam
 
 WORKDIR /usr/src/gtsam/build
 
-# Needed to link with GTSAM
-RUN echo "export LD_LIBRARY_PATH=/usr/local/lib:\$LD_LIBRARY_PATH" >> /root/.bashrc
-
-# Install python wrapper requirements
-RUN python3 -m pip install -U -r /usr/src/gtsam/python/requirements.txt
+# Install python wrapper requirements, then pin numpy for GTSAM ABI compatibility
+RUN python3 -m pip install --no-cache-dir -U -r /usr/src/gtsam/python/requirements.txt && \
+    python3 -m pip install --no-cache-dir "numpy==1.26.4"
 
 # Run cmake
 RUN cmake \
@@ -141,14 +91,39 @@ RUN cmake \
     -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
     ..
 
-# Make install and clean up
+# Build, install, strip binaries, and clean in one layer to reduce image size
 RUN make -j$(nproc) install && \
     make python-install && \
-    make clean
+    #find /usr/local -type f \( -name "*.so" -o -name "*.so.*" \) -exec strip --strip-unneeded {} \; 2>/dev/null || true && \
+    #find /usr/local/bin /usr/local/lib -executable -type f -exec strip --strip-unneeded {} \; 2>/dev/null || true && \
+    make clean && \
+    ldconfig
 
-RUN apt-get clean && \
-    rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
+# Final cleanup (dependencies stage already cleared apt lists)
+RUN rm -rf /tmp/* /var/tmp/*
+
+# -----------------------------------------------------------------------------
+# Slim runtime stage: copy only installed artifacts, no build tools or source
+# -----------------------------------------------------------------------------
+FROM debian:trixie-slim AS runtime
+
+ENV DEBIAN_FRONTEND=noninteractive
+ENV PATH="/usr/local/bin:${PATH}"
+ENV LD_LIBRARY_PATH=/usr/local/lib
+
+# Runtime libs only. Python binary (ldd python3.11) needs only libc/libm/libpython; GTSAM needs Boost + TBB (see scripts/audit-runtime-deps.sh).
+# Add back libssl3t64 libbz2-1.0 libreadline8t64 libsqlite3-0 libffi8 zlib1g libncursesw6 if you import ssl/sqlite3/readline/etc.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
+    libtbb12 \
+    libtbbmalloc2 \
+    libboost-serialization1.83.0 \
+    libboost-filesystem1.83.0 \
+    libboost-timer1.83.0 \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY --from=gtsam /usr/local /usr/local
 
 RUN ldconfig
 
-CMD ["bash"]
+CMD ["python3"]
