@@ -1,0 +1,42 @@
+# Pre-built optimized Python base image for GTSAM builds.
+# Build and push once per Python version:
+#   docker build -f Dockerfile.python-base -t ghcr.io/yourorg/python-optimized:3.11.2-trixie .
+#   docker push ghcr.io/yourorg/python-optimized:3.11.2-trixie
+FROM debian:trixie-20260112
+ARG PYTHON_VERSION=3.11.2
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Install Python build dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
+    build-essential \
+    wget \
+    libssl-dev \
+    libbz2-dev \
+    libreadline-dev \
+    libsqlite3-dev \
+    libffi-dev \
+    zlib1g-dev \
+    libncursesw5-dev \
+    tk-dev \
+    libgdbm-dev \
+    liblzma-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /usr/src
+
+# Build Python with PGO and LTO optimizations (takes ~15 min but only done once)
+RUN wget https://www.python.org/ftp/python/${PYTHON_VERSION}/Python-${PYTHON_VERSION}.tgz && \
+    tar xvf Python-${PYTHON_VERSION}.tgz && \
+    cd Python-${PYTHON_VERSION} && \
+    ./configure --enable-optimizations --with-lto --enable-shared && \
+    make -j$(nproc) && \
+    make install && \
+    cd .. && \
+    rm -rf Python-${PYTHON_VERSION} Python-${PYTHON_VERSION}.tgz && \
+    ldconfig
+
+ENV PATH="/usr/local/bin:${PATH}"
+
+RUN python3 -m pip install --no-cache-dir --upgrade pip

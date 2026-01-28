@@ -1,26 +1,16 @@
 # Default build produces the "runtime" stage (slim). Use --target gtsam for a dev image with build tools and shell.
-FROM debian:trixie-20260112 AS dependencies
-ARG PYTHON_VERSION=3.11.2
+# Pre-built Python base image (build once with Dockerfile.python-base, push to registry)
+# To build locally without registry: docker build -f Dockerfile.python-base -t python-optimized:3.11.2-trixie .
+ARG PYTHON_BASE_IMAGE=python-optimized:3.11.2-trixie
+FROM ${PYTHON_BASE_IMAGE} AS dependencies
 
 # Disable GUI prompts
 ENV DEBIAN_FRONTEND=noninteractive
 
-# Install required build dependencies (single update for better layer caching)
+# Install GTSAM build dependencies (Python already installed in base image)
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    ca-certificates \
-    build-essential \
-    wget \
-    libssl-dev \
-    libbz2-dev \
-    libreadline-dev \
-    libsqlite3-dev \
-    libffi-dev \
-    zlib1g-dev \
-    libncursesw5-dev \
-    tk-dev \
-    libgdbm-dev \
-    liblzma-dev \
     apt-utils \
+    build-essential \
     libboost-all-dev \
     cmake \
     libtbb-dev \
@@ -35,22 +25,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 # Set working directory
 WORKDIR /usr/src
-
-# Install Python with --enable-shared
-RUN wget https://www.python.org/ftp/python/${PYTHON_VERSION}/Python-${PYTHON_VERSION}.tgz && \
-    tar xvf Python-${PYTHON_VERSION}.tgz && \
-    cd Python-${PYTHON_VERSION} && \
-    ./configure --enable-optimizations --with-lto --enable-shared && \
-    make -j$(nproc) && \
-    make install && \
-    cd .. && \
-    rm -rf Python-${PYTHON_VERSION} Python-${PYTHON_VERSION}.tgz && \
-    ldconfig
-
-# Ensure /usr/local/bin is in the PATH
-ENV PATH="/usr/local/bin:${PATH}"
-
-RUN python3 -m pip install --no-cache-dir --upgrade pip
 
 # Use git to clone gtsam and specific GTSAM version 
 FROM alpine/git:2.52.0 AS gtsam-clone
