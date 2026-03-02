@@ -2,7 +2,7 @@
 # Build and push once per Python version:
 #   docker build -f Dockerfile.python-base -t ghcr.io/yourorg/python-optimized:3.11.2-trixie .
 #   docker push ghcr.io/yourorg/python-optimized:3.11.2-trixie
-FROM debian:trixie-20260112
+FROM debian:trixie-20260223
 ARG PYTHON_VERSION=3.11.2
 
 ENV DEBIAN_FRONTEND=noninteractive
