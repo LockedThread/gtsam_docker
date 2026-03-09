@@ -61,7 +61,7 @@ jobs:
             type=raw,value=${{ steps.python.outputs.version }}-trixie-${{ matrix.platform == 'linux/amd64' && 'amd64' || 'arm64' }}
 
       - name: Build and push Python base image for ${{ matrix.platform }}
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           file: Dockerfile.python-base
