@@ -58,7 +58,7 @@ jobs:
       # Use docker/metadata-action to generate tags with an architecture suffix
       - name: Extract Docker metadata
         id: meta
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@v6
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
