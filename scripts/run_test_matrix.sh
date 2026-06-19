@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -u
 
-JOBS="${JOBS:-4}"
+JOBS="${JOBS:-2}"
 DOCKER_BUILD_FLAGS="${DOCKER_BUILD_FLAGS:---progress=plain}"
 export DOCKER_BUILD_FLAGS
 
