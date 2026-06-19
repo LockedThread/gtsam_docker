@@ -13,6 +13,9 @@ on:
         required: true
         type: string
 
+env:
+  REGISTRY: ghcr.io
+
 jobs:
   build-full-matrix:
     permissions:
@@ -44,6 +47,8 @@ jobs:
     permissions:
       contents: write
       pull-requests: write
+    outputs:
+      main_pr: ${{ steps.create_main_pr.outputs.pull_request_number }}
     steps:
       - uses: actions/checkout@v6
 
@@ -71,6 +76,7 @@ jobs:
         run: git push origin release/${{ inputs.version }}
 
       - name: Create pull request into main
+        id: create_main_pr
         uses: thomaseizinger/create-pull-request@1.4.0
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
@@ -91,3 +97,55 @@ jobs:
           body: |
             This PR was created by the Release workflow.
             Changelog commit: ${{ steps.make-commit.outputs.commit }}.
+
+  # Scan the just-published release images and post the results as a comment on
+  # the release PR. This is deliberately NON-GATING: the job does not fail on
+  # findings, it only surfaces them for review next to the changelog.
+  vuln-report:
+    needs: [build-full-matrix, changelog-pr]
+    if: ${{ needs.changelog-pr.outputs.main_pr != '' }}
+    # Never let scanning/commenting affect the release run's status.
+    continue-on-error: true
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      packages: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install grype
+        run: |
+          curl -sSfL https://raw.githubusercontent.com/anchore/grype/main/install.sh \
+            | sh -s -- -b /usr/local/bin
+
+      - name: Log into registry ${{ env.REGISTRY }}
+        uses: docker/login-action@v4
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Generate vulnerability report
+        env:
+          VULN_REPORT_VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          repo="${GITHUB_REPOSITORY,,}"
+          image="${REGISTRY}/${repo}"
+          ver="${{ inputs.version }}"
+          imgs=()
+          for py in 3.11 3.12 3.13 3.14; do
+            for gtsam in 4.2.0 4.2.1 4.3a1; do
+              for base in trixie trixie-slim distroless-debian13 alpine; do
+                imgs+=("${image}:${ver}-gtsam${gtsam}-py${py}-${base}")
+              done
+            done
+          done
+          ./scripts/vuln-report.sh vuln-report.md "${imgs[@]}"
+
+      - name: Comment report on release PR
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh pr comment "${{ needs.changelog-pr.outputs.main_pr }}" --body-file vuln-report.md
