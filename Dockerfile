@@ -45,11 +45,21 @@ RUN set -eu; \
     python3 -m pip install -q --no-cache-dir --upgrade "pyparsing>=2.4" "$resolved_numpy_spec" "$resolved_pybind11_stubgen_spec";
 RUN set -eu; \
     cmake_log=/tmp/gtsam-cmake-configure.log; \
+    python_exe="$(command -v python3)"; \
+    python_include="$(python3 -c 'import sysconfig; print(sysconfig.get_path("include"))')"; \
+    python_library="$(python3 -c 'import pathlib, sysconfig; print(pathlib.Path(sysconfig.get_config_var("LIBDIR"), sysconfig.get_config_var("LDLIBRARY")))')"; \
     if ! cmake \
       -Wno-dev \
       -Wno-deprecated \
       -DCMAKE_BUILD_TYPE=Release \
       -DCMAKE_INSTALL_PREFIX=/usr/local \
+      -DPython3_EXECUTABLE="$python_exe" \
+      -DPython3_INCLUDE_DIR="$python_include" \
+      -DPython3_LIBRARY="$python_library" \
+      -DPython_EXECUTABLE="$python_exe" \
+      -DPYTHON_EXECUTABLE="$python_exe" \
+      -DPYTHON_INCLUDE_DIR="$python_include" \
+      -DPYTHON_LIBRARY="$python_library" \
       -DGTSAM_WITH_EIGEN_MKL=OFF \
       -DGTSAM_BUILD_EXAMPLES_ALWAYS=OFF \
       -DGTSAM_BUILD_TIMING_ALWAYS=OFF \
