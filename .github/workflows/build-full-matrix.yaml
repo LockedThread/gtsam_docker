@@ -17,6 +17,9 @@ on:
   schedule:
     - cron: "21 8 * * 1"
 
+# Deny all GITHUB_TOKEN scopes by default; jobs opt into the minimum they need.
+permissions: {}
+
 env:
   REGISTRY: ghcr.io
 
