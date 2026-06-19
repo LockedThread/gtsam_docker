@@ -13,12 +13,17 @@ on:
   # Allows you to run this workflow manually from the Actions tab
   # workflow_dispatch:
 
+# Deny all GITHUB_TOKEN scopes by default; jobs opt into the minimum they need.
+permissions: {}
+
 # A workflow run is made up of one or more jobs that can run sequentially or in parallel
 jobs:
   # This workflow contains a single job called "build"
   get-labels:
     if: ${{github.event.pull_request.merged == true && !startsWith(github.head_ref, 'release/')}}
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     outputs:
       labels: ${{ steps.match-label.outputs.match }}
     steps:

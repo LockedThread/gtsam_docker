@@ -10,6 +10,9 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.ref }}
   cancel-in-progress: true
 
+# Deny all GITHUB_TOKEN scopes by default; jobs opt into the minimum they need.
+permissions: {}
+
 env:
   REGISTRY: ghcr.io
 

@@ -13,6 +13,9 @@ on:
         required: true
         type: string
 
+# Deny all GITHUB_TOKEN scopes by default; jobs opt into the minimum they need.
+permissions: {}
+
 env:
   REGISTRY: ghcr.io
 
