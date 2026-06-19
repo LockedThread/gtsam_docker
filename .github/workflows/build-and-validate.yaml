@@ -6,21 +6,75 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  PYTHON_BASE_IMAGE_NAME: ${{ github.repository }}/python-base
 
 jobs:
-  build-and-validate:
+  pr-matrix:
     strategy:
       fail-fast: false
       matrix:
         include:
-          - platform: linux/amd64
+          - name: gtsam420-py311-trixie-slim-amd64
+            platform: linux/amd64
             runner: ubuntu-latest
-            arch: amd64
-          - platform: linux/arm64
+            python_version: "3.11"
+            gtsam_version: "4.2.0"
+            python_build_target: python-build-glibc
+            python_runtime_target: python-runtime-glibc-slim
+            python_suffix: glibc-trixie
+            runtime_suffix: glibc-trixie-slim
+            runtime_target: runtime-trixie-slim
+            validation: /examples/PlanarSLAMExample.py
+            experimental: false
+          - name: gtsam43a1-py314-trixie-slim-amd64
+            platform: linux/amd64
+            runner: ubuntu-latest
+            python_version: "3.14"
+            gtsam_version: "4.3a1"
+            python_build_target: python-build-glibc
+            python_runtime_target: python-runtime-glibc-slim
+            python_suffix: glibc-trixie
+            runtime_suffix: glibc-trixie-slim
+            runtime_target: runtime-trixie-slim
+            validation: /examples/PlanarSLAMExample.py
+            experimental: false
+          - name: gtsam43a1-py314-trixie-slim-arm64
+            platform: linux/arm64
             runner: ubuntu-24.04-arm
-            arch: arm64
+            python_version: "3.14"
+            gtsam_version: "4.3a1"
+            python_build_target: python-build-glibc
+            python_runtime_target: python-runtime-glibc-slim
+            python_suffix: glibc-trixie
+            runtime_suffix: glibc-trixie-slim
+            runtime_target: runtime-trixie-slim
+            validation: /examples/validate_gtsam.py
+            experimental: false
+          - name: gtsam43a1-py314-distroless-amd64
+            platform: linux/amd64
+            runner: ubuntu-latest
+            python_version: "3.14"
+            gtsam_version: "4.3a1"
+            python_build_target: python-build-glibc
+            python_runtime_target: python-runtime-glibc-slim
+            python_suffix: glibc-trixie
+            runtime_suffix: glibc-trixie-slim
+            runtime_target: runtime-distroless
+            validation: /examples/PlanarSLAMExample.py
+            experimental: true
+          - name: gtsam43a1-py314-alpine-amd64
+            platform: linux/amd64
+            runner: ubuntu-latest
+            python_version: "3.14"
+            gtsam_version: "4.3a1"
+            python_build_target: python-build-musl
+            python_runtime_target: python-runtime-musl-alpine
+            python_suffix: musl-alpine
+            runtime_suffix: musl-alpine
+            runtime_target: runtime-alpine
+            validation: /examples/PlanarSLAMExample.py
+            experimental: true
     runs-on: ${{ matrix.runner }}
+    continue-on-error: ${{ matrix.experimental }}
     permissions:
       contents: read
       packages: read
@@ -31,28 +85,50 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
 
-      - name: Log into registry ${{ env.REGISTRY }}
-        uses: docker/login-action@v4
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Get Python version from Dockerfile
-        id: python
+      - name: Build local Python build base
         run: |
-          VERSION=$(grep -oP 'ARG PYTHON_VERSION=\K[0-9.]+' Dockerfile.python-base)
-          echo "version=${VERSION}" >> $GITHUB_OUTPUT
-
-      - name: Build image (${{ matrix.platform }})
-        run: |
-          LOWER_IMAGE_NAME=$(echo "${{ env.PYTHON_BASE_IMAGE_NAME }}" | tr '[:upper:]' '[:lower:]')
           docker build \
             --platform ${{ matrix.platform }} \
-            --build-arg PYTHON_BASE_IMAGE=${{ env.REGISTRY }}/${LOWER_IMAGE_NAME}:${{ steps.python.outputs.version }}-trixie-${{ matrix.arch }} \
-            -t gtsam_docker:latest .
+            -f Dockerfile.python-base \
+            --target ${{ matrix.python_build_target }} \
+            --build-arg PYTHON_VERSION=${{ matrix.python_version }} \
+            -t python-build-local:py${{ matrix.python_version }}-${{ matrix.python_suffix }} \
+            .
 
-      - name: Validate image (PlanarSLAM example)
+      - name: Build local Python runtime base
         run: |
-          chmod +x ./scripts/validate_container.sh
-          ./scripts/validate_container.sh gtsam_docker:latest /examples/PlanarSLAMExample.py
+          docker build \
+            --platform ${{ matrix.platform }} \
+            -f Dockerfile.python-base \
+            --target ${{ matrix.python_runtime_target }} \
+            --build-arg PYTHON_VERSION=${{ matrix.python_version }} \
+            -t python-runtime-local:py${{ matrix.python_version }}-${{ matrix.runtime_suffix }} \
+            .
+
+      - name: Build GTSAM runtime image
+        run: |
+          docker build \
+            --platform ${{ matrix.platform }} \
+            --target ${{ matrix.runtime_target }} \
+            --build-arg PYTHON_VERSION=${{ matrix.python_version }} \
+            --build-arg PYTHON_ABI=${{ matrix.python_version }} \
+            --build-arg GTSAM_VERSION=${{ matrix.gtsam_version }} \
+            --build-arg PYTHON_BUILD_IMAGE=python-build-local:py${{ matrix.python_version }}-${{ matrix.python_suffix }} \
+            --build-arg PYTHON_RUNTIME_IMAGE=python-runtime-local:py${{ matrix.python_version }}-${{ matrix.runtime_suffix }} \
+            --build-arg PYTHON_RUNTIME_TRIXIE_IMAGE=python-runtime-local:py${{ matrix.python_version }}-${{ matrix.runtime_suffix }} \
+            --build-arg PYTHON_RUNTIME_SLIM_IMAGE=python-runtime-local:py${{ matrix.python_version }}-${{ matrix.runtime_suffix }} \
+            --build-arg PYTHON_RUNTIME_ALPINE_IMAGE=python-runtime-local:py${{ matrix.python_version }}-${{ matrix.runtime_suffix }} \
+            -t gtsam_docker:${{ matrix.name }} \
+            .
+
+      - name: Validate minimal GTSAM import
+        run: ./scripts/validate_container.sh gtsam_docker:${{ matrix.name }} /examples/validate_gtsam.py
+
+      - name: Validate NumPy ABI
+        run: ./scripts/validate_container.sh gtsam_docker:${{ matrix.name }} /examples/validate_numpy_abi.py
+
+      - name: Validate scenario script
+        run: ./scripts/validate_container.sh gtsam_docker:${{ matrix.name }} ${{ matrix.validation }}
+
+      - name: Report image size
+        run: ./scripts/size-report.sh gtsam_docker:${{ matrix.name }} ${{ matrix.name }}

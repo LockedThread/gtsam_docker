@@ -1,42 +1,120 @@
-# Pre-built optimized Python base image for GTSAM builds.
-# Build and push once per Python version:
-#   docker build -f Dockerfile.python-base -t ghcr.io/yourorg/python-optimized:3.11.2-trixie .
-#   docker push ghcr.io/yourorg/python-optimized:3.11.2-trixie
-FROM debian:trixie-20260421
-ARG PYTHON_VERSION=3.11.2
+# Layered Python base images for GTSAM CI.
+#
+# Published targets:
+#   python-build-glibc          -> python-build:py<version>-glibc-trixie
+#   python-runtime-glibc-trixie -> python-runtime:py<version>-glibc-trixie
+#   python-runtime-glibc-slim   -> python-runtime:py<version>-glibc-trixie-slim
+#   python-build-musl           -> python-build:py<version>-musl-alpine
+#   python-runtime-musl-alpine  -> python-runtime:py<version>-musl-alpine
+ARG PYTHON_VERSION=3.14
+ARG PYTHON_GLIBC_VARIANT=trixie
+ARG PYTHON_ALPINE_VARIANT=alpine3.24
 
-ENV DEBIAN_FRONTEND=noninteractive
-
-# Install Python build dependencies
-RUN apt-get update && apt-get install -y --no-install-recommends \
+FROM python:${PYTHON_VERSION}-${PYTHON_GLIBC_VARIANT} AS python-build-glibc
+ENV DEBIAN_FRONTEND=noninteractive \
+    PIP_NO_CACHE_DIR=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1
+RUN apt-get update -qq && apt-get install -qq -y --no-install-recommends \
     ca-certificates \
+    bison \
     build-essential \
-    wget \
-    libssl-dev \
-    libbz2-dev \
-    libreadline-dev \
-    libsqlite3-dev \
-    libffi-dev \
-    zlib1g-dev \
-    libncursesw5-dev \
-    tk-dev \
-    libgdbm-dev \
-    liblzma-dev \
-    && rm -rf /var/lib/apt/lists/*
-
+    cmake \
+    dejagnu \
+    flex \
+    git \
+    libboost-filesystem-dev \
+    libboost-program-options-dev \
+    libboost-regex-dev \
+    libboost-serialization-dev \
+    libboost-system-dev \
+    libboost-thread-dev \
+    libboost-timer-dev \
+    libeigen3-dev \
+    libgmp-dev \
+    libmpc-dev \
+    libmpfr-dev \
+    libtbb-dev \
+    ninja-build \
+    pkg-config \
+    > /dev/null && rm -rf /var/lib/apt/lists/*
 WORKDIR /usr/src
+RUN python3 -m pip install -q --no-cache-dir --upgrade pip setuptools wheel
 
-# Build Python with PGO and LTO optimizations (takes ~15 min but only done once)
-RUN wget https://www.python.org/ftp/python/${PYTHON_VERSION}/Python-${PYTHON_VERSION}.tgz && \
-    tar xvf Python-${PYTHON_VERSION}.tgz && \
-    cd Python-${PYTHON_VERSION} && \
-    ./configure --enable-optimizations --with-lto --enable-shared && \
-    make -j$(nproc) && \
-    make install && \
-    cd .. && \
-    rm -rf Python-${PYTHON_VERSION} Python-${PYTHON_VERSION}.tgz && \
-    ldconfig
+FROM python:${PYTHON_VERSION}-${PYTHON_GLIBC_VARIANT} AS python-runtime-glibc-trixie
+ENV DEBIAN_FRONTEND=noninteractive \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    LD_LIBRARY_PATH=/usr/local/lib
+RUN apt-get update -qq && apt-get install -qq -y --no-install-recommends \
+    ca-certificates \
+    libboost-filesystem1.83.0 \
+    libboost-regex1.83.0 \
+    libboost-serialization1.83.0 \
+    libboost-system1.83.0 \
+    libboost-timer1.83.0 \
+    libgomp1 \
+    libtbb12 \
+    libtbbmalloc2 \
+    > /dev/null && rm -rf /var/lib/apt/lists/*
+CMD ["python3"]
 
-ENV PATH="/usr/local/bin:${PATH}"
+FROM python:${PYTHON_VERSION}-slim-${PYTHON_GLIBC_VARIANT} AS python-runtime-glibc-slim
+ENV DEBIAN_FRONTEND=noninteractive \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    LD_LIBRARY_PATH=/usr/local/lib
+RUN apt-get update -qq && apt-get install -qq -y --no-install-recommends \
+    ca-certificates \
+    libboost-filesystem1.83.0 \
+    libboost-regex1.83.0 \
+    libboost-serialization1.83.0 \
+    libboost-system1.83.0 \
+    libboost-timer1.83.0 \
+    libgomp1 \
+    libtbb12 \
+    libtbbmalloc2 \
+    > /dev/null && rm -rf /var/lib/apt/lists/*
+CMD ["python3"]
 
-RUN python3 -m pip install --no-cache-dir --upgrade pip
+FROM python:${PYTHON_VERSION}-${PYTHON_ALPINE_VARIANT} AS python-build-musl
+ENV PIP_NO_CACHE_DIR=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1
+RUN apk add -q --no-cache \
+    bison \
+    boost-dev \
+    build-base \
+    ca-certificates \
+    cmake \
+    eigen-dev \
+    flex \
+    git \
+    gmp-dev \
+    mpfr-dev \
+    mpc1-dev \
+    ninja \
+    pkgconf \
+    onetbb-dev
+WORKDIR /usr/src
+RUN python3 -m pip install -q --no-cache-dir --upgrade pip setuptools wheel
+
+FROM python:${PYTHON_VERSION}-${PYTHON_ALPINE_VARIANT} AS python-runtime-musl-alpine
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    LD_LIBRARY_PATH=/usr/local/lib
+RUN apk add -q --no-cache \
+    boost1.84-filesystem \
+    boost1.84-regex \
+    boost1.84-serialization \
+    boost1.84-system \
+    boost1.84-timer \
+    ca-certificates \
+    libgcc \
+    libgomp \
+    libstdc++ \
+    onetbb
+CMD ["python3"]
+
+FROM python-build-glibc AS python-build
+FROM python-runtime-glibc-slim AS python-runtime
