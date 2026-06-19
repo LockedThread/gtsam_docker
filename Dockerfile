@@ -28,7 +28,8 @@ ARG NUMPY_SPEC
 ENV LD_LIBRARY_PATH=/usr/local/lib \
     PIP_NO_CACHE_DIR=1 \
     PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1
+    PYTHONUNBUFFERED=1 \
+    PYTHONUSERBASE=/usr/local
 COPY --from=gtsam-source /usr/src/gtsam /usr/src/gtsam
 WORKDIR /usr/src/gtsam/build
 RUN set -eu; \
