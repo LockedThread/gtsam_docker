@@ -86,7 +86,9 @@ RUN set -eu; \
     find /usr/local -type f \( -name '*.so' -o -name '*.so.*' \) -exec strip --strip-unneeded {} + 2>/dev/null || true; \
     find /usr/local -type f -name '*.a' -delete; \
     python_site="$(python3 -c 'import site; print(site.getsitepackages()[0])')"; \
-    rm -rf "$python_site"/pip* "$python_site"/setuptools* "$python_site"/wheel* "$python_site"/packaging*; \
+    for pkg in pip setuptools wheel packaging pytest _pytest pluggy iniconfig pygments py pybind11_stubgen; do \
+      rm -rf "$python_site/$pkg" "$python_site/$pkg".* "$python_site/$pkg"-*.dist-info; \
+    done; \
     find /usr/local -type d \( -name '__pycache__' -o -name 'test' -o -name 'tests' \) -prune -exec rm -rf {} +; \
     rm -rf /usr/src/gtsam /tmp/* /var/tmp/*
 CMD ["python3"]
