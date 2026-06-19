@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Run a GTSAM example inside the runtime container to validate the image.
+# Run a validation script inside a GTSAM runtime container.
 #
 # Usage:
 #   ./scripts/validate_container.sh [IMAGE_TAG] [EXAMPLE]
@@ -8,20 +8,17 @@
 #   ./scripts/validate_container.sh
 #   ./scripts/validate_container.sh gtsam_docker:latest
 #   ./scripts/validate_container.sh gtsam_docker:latest /examples/PlanarSLAMExample.py
-#
-# Default EXAMPLE is /examples/validate_gtsam.py (minimal graph/values check).
-# Use /examples/PlanarSLAMExample.py for the full PlanarSLAM example from borglab/gtsam.
-#
-# Prereq: build the runtime image first, e.g.  docker build -t gtsam_docker:latest .
+#   PYTHON_CMD=/usr/local/bin/python3 ./scripts/validate_container.sh image /examples/validate_numpy_abi.py
 
-set -e
+set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 EXAMPLES_DIR="$REPO_ROOT/examples"
 IMAGE="${1:-gtsam_docker:latest}"
 EXAMPLE="${2:-/examples/validate_gtsam.py}"
-# If EXAMPLE has no leading slash, treat as name under /examples/
+PYTHON_CMD="${PYTHON_CMD:-/usr/local/bin/python3}"
+
 if [[ -n "$EXAMPLE" && "$EXAMPLE" != /* ]]; then
   EXAMPLE="/examples/$EXAMPLE"
 fi
@@ -32,24 +29,23 @@ if [[ ! -d "$EXAMPLES_DIR" ]]; then
 fi
 
 if ! docker image inspect "$IMAGE" >/dev/null 2>&1; then
-  echo "Image $IMAGE not found. Build it first, e.g.:" >&2
-  echo "  docker build -t gtsam_docker:latest ." >&2
+  echo "Image $IMAGE not found. Build it first." >&2
   exit 1
 fi
 
-echo "Running GTSAM example in container (image: $IMAGE, script: $EXAMPLE)..."
+echo "Running container validation (image: $IMAGE, script: $EXAMPLE, python: $PYTHON_CMD)..."
 echo "---"
 
 docker run --rm \
   -v "$EXAMPLES_DIR:/examples:ro" \
   "$IMAGE" \
-  python3 "$EXAMPLE"
+  "$PYTHON_CMD" "$EXAMPLE"
 
-EXIT_CODE=$?
+status=$?
 echo "---"
-if [[ $EXIT_CODE -eq 0 ]]; then
-  echo "OK: Example finished with exit code 0."
+if [[ $status -eq 0 ]]; then
+  echo "OK: validation finished with exit code 0."
 else
-  echo "FAIL: Example exited with code $EXIT_CODE." >&2
-  exit $EXIT_CODE
+  echo "FAIL: validation exited with code $status." >&2
+  exit "$status"
 fi
