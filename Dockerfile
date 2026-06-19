@@ -34,14 +34,15 @@ COPY --from=gtsam-source /usr/src/gtsam /usr/src/gtsam
 WORKDIR /usr/src/gtsam/build
 RUN set -eu; \
     resolved_numpy_spec="${NUMPY_SPEC}"; \
+    resolved_pybind11_stubgen_spec=""; \
     if [ -z "$resolved_numpy_spec" ]; then \
       case "$GTSAM_VERSION" in \
-        4.3*) resolved_numpy_spec='numpy>=2,<3' ;; \
-        *) resolved_numpy_spec='numpy<2' ;; \
+        4.3*) resolved_numpy_spec="numpy>=2,<3"; resolved_pybind11_stubgen_spec="pybind11_stubgen==2.5.5" ;; \
+        *) resolved_numpy_spec="numpy<2"; resolved_pybind11_stubgen_spec="" ;; \
       esac; \
     fi; \
     python3 -m pip install -q --no-cache-dir --upgrade -r /usr/src/gtsam/python/requirements.txt; \
-    python3 -m pip install -q --no-cache-dir --upgrade "$resolved_numpy_spec"
+    python3 -m pip install -q --no-cache-dir --upgrade "pyparsing>=2.4" "$resolved_numpy_spec" "$resolved_pybind11_stubgen_spec";
 RUN set -eu; \
     cmake_log=/tmp/gtsam-cmake-configure.log; \
     if ! cmake \
