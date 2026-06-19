@@ -17,6 +17,8 @@ Types of Changes:
 
 ## [Unreleased]
 
+## [5.0.0] - 2026-06-19
+
 ## [3.0.1] - 2026-06-12
 
 ## [3.0.0] - 2026-01-28
@@ -45,7 +47,8 @@ Types of Changes:
 
 ## [1.0.2] - 2023-09-14
 
-[unreleased]: https://github.com/LockedThread/gtsam_docker/compare/3.0.1...HEAD
+[unreleased]: https://github.com/LockedThread/gtsam_docker/compare/5.0.0...HEAD
+[5.0.0]: https://github.com/LockedThread/gtsam_docker/compare/3.0.1...5.0.0
 [3.0.1]: https://github.com/LockedThread/gtsam_docker/compare/3.0.0...3.0.1
 [3.0.0]: https://github.com/LockedThread/gtsam_docker/compare/1.11.1...3.0.0
 [1.11.1]: https://github.com/LockedThread/gtsam_docker/compare/1.11.0...1.11.1
