@@ -13,7 +13,10 @@ import gtsam
 def main() -> int:
     sigmas = np.array([0.3, 0.3, 0.1], dtype=np.float64)
     model = gtsam.noiseModel.Diagonal.Sigmas(sigmas)
-    assert model.dim() == 3
+    returned_sigmas = model.sigmas()
+    assert isinstance(returned_sigmas, np.ndarray)
+    assert returned_sigmas.shape == (3,)
+    np.testing.assert_allclose(returned_sigmas, sigmas)
     print(f"NUMPY ABI OK: numpy={np.__version__}")
     return 0
 
