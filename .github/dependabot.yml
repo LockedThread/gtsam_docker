@@ -1,17 +1,36 @@
-# To get started with Dependabot version updates, you'll need to specify which
-# package ecosystems to update and where the package manifests are located.
-# Please see the documentation for all configuration options:
-# https://docs.github.com/code-security/dependabot/dependabot-version-updates/configuration-options-for-the-dependabot.yml-file
-
 version: 2
 updates:
-  - package-ecosystem: "docker" # See documentation for possible values
-    directory: "/" # Location of package manifests
-    target-branch: "development"
+  # Base images referenced by literal FROM tags (alpine/git, distroless).
+  # Dependabot bumps both the tag and the pinned @sha256 digest via PRs that
+  # the build-and-validate matrix gates before merge. ARG-interpolated
+  # python:* images cannot be tracked here; their distro line is chosen via
+  # build args and reviewed manually when moving Debian/Alpine releases.
+  - package-ecosystem: "docker"
+    directory: "/"
     schedule:
       interval: "weekly"
-  - package-ecosystem: "github-actions" # See documentation for possible values
-    directory: "/" # Location of package manifests
-    target-branch: "development"
+    open-pull-requests-limit: 5
+    groups:
+      docker-base-images:
+        patterns:
+          - "*"
+    commit-message:
+      prefix: "docker"
+    labels:
+      - "dependencies"
+      - "docker"
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
     schedule:
       interval: "weekly"
+    open-pull-requests-limit: 5
+    groups:
+      github-actions:
+        patterns:
+          - "*"
+    commit-message:
+      prefix: "ci"
+    labels:
+      - "dependencies"
+      - "github-actions"
