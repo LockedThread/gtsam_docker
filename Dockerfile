@@ -17,7 +17,7 @@ ARG PYTHON_RUNTIME_TRIXIE_IMAGE=python-runtime:py3.14-glibc-trixie
 ARG PYTHON_RUNTIME_SLIM_IMAGE=python-runtime:py3.14-glibc-trixie-slim
 ARG PYTHON_RUNTIME_ALPINE_IMAGE=python-runtime:py3.14-musl-alpine
 
-FROM alpine/git:2.52.0@sha256:4a0e72d49596a1f5d3701aeedafdadc5c0da4062be4657c7bdc4017387f591cc AS gtsam-source
+FROM alpine/git:v2.54.0@sha256:113d99116e236f93f0b1f53cd46dbda662cf1136d20dc9ae2834962226654d9f AS gtsam-source
 ARG GTSAM_VERSION
 WORKDIR /usr/src
 RUN git clone --quiet --depth 1 --branch "${GTSAM_VERSION}" https://github.com/borglab/gtsam.git
