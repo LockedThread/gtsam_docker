@@ -35,7 +35,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - uses: marvinpinto/action-automatic-releases@latest
         with:
@@ -53,7 +53,7 @@ jobs:
     outputs:
       main_pr: ${{ steps.create_main_pr.outputs.pull_request_number }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Create release branch
         run: git checkout -b release/${{ inputs.version }}
@@ -116,7 +116,7 @@ jobs:
       packages: read
       pull-requests: write
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Install grype
         run: |
