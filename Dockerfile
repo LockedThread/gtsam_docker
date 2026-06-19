@@ -104,9 +104,21 @@ CMD ["python3"]
 # Boost/TBB SONAME. Core libc/loader libraries are skipped because every
 # runtime base already provides them. Original paths are preserved so the
 # loader finds them with no ldconfig (needed for distroless).
+#
+# We also record package provenance for the copied libs into /sbom-meta so they
+# show up in the runtime image's own SBOM (the canonical source vulnerability
+# scanners read). Vendored .so files carry no package metadata, so we map each
+# back to its owning dpkg/apk package and stage that package-database entry:
+#   - Debian: /var/lib/dpkg/status.d/<pkg> stanzas (the distroless convention,
+#     also read by syft on regular images).
+#   - Alpine: a /lib/apk/db/installed fragment appended in the runtime stage.
+# The C/C++ toolchain libs (libstdc++/libgcc/libgomp) are excluded from the
+# Debian metadata because the Debian runtime base already ships and catalogs
+# them; emitting duplicates would double-count them in the SBOM.
 FROM gtsam-build AS runtime-libs
 RUN set -eu; \
-    mkdir -p /runtime-libs; \
+    mkdir -p /runtime-libs /sbom-meta; \
+    : > /tmp/deps.list; \
     targets="$(find /usr/local/lib -maxdepth 1 -name 'lib*gtsam*.so*' 2>/dev/null; \
                find /usr/local/lib/python*/site-packages/gtsam* -name '*.so' 2>/dev/null)"; \
     for so in $targets; do ldd "$so" 2>/dev/null || true; done \
@@ -122,7 +134,26 @@ RUN set -eu; \
           dest="/runtime-libs$(dirname "$real")"; \
           mkdir -p "$dest"; \
           cp "$real" "$dest/$(basename "$dep")"; \
-        done
+          printf '%s\n' "$real" >> /tmp/deps.list; \
+        done; \
+    if command -v dpkg-query >/dev/null 2>&1; then \
+      mkdir -p /sbom-meta/var/lib/dpkg/status.d; \
+      while IFS= read -r f; do \
+        case "$(basename "$f")" in libstdc++*|libgcc_s*|libgomp*) continue ;; esac; \
+        dpkg-query -S "$f" 2>/dev/null | awk -F': ' '{print $1}' | sed 's/:.*//'; \
+      done < /tmp/deps.list | sort -u | while IFS= read -r p; do \
+        [ -n "$p" ] || continue; \
+        dpkg-query -s "$p" > "/sbom-meta/var/lib/dpkg/status.d/$p" 2>/dev/null || true; \
+      done; \
+    elif command -v apk >/dev/null 2>&1; then \
+      names="$(while IFS= read -r f; do apk info -W "$f" 2>/dev/null; done < /tmp/deps.list \
+        | sed -n 's/.* is owned by //p' | sed -E 's/-[0-9][^-]*-r[0-9]+$//' | sort -u)"; \
+      awk -v RS='' -v names="$names" \
+        'BEGIN{c=split(names,a,"\n"); for(i=1;i<=c;i++) want[a[i]]=1} \
+         { nm=""; n=split($0,L,"\n"); for(i=1;i<=n;i++) if(L[i] ~ /^P:/) nm=substr(L[i],3); if(nm in want) printf "%s\n\n", $0 }' \
+        /lib/apk/db/installed > /sbom-meta/apk-fragment; \
+    fi; \
+    rm -f /tmp/deps.list
 
 FROM ${PYTHON_RUNTIME_TRIXIE_IMAGE} AS runtime-trixie
 ARG PYTHON_ABI
@@ -130,6 +161,7 @@ ENV LD_LIBRARY_PATH=/usr/local/lib \
     PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
 COPY --from=runtime-libs /runtime-libs/ /
+COPY --from=runtime-libs /sbom-meta/ /
 COPY --from=gtsam-build /usr/local/lib/lib*gtsam* /usr/local/lib/
 COPY --from=gtsam-build /usr/local/lib/python${PYTHON_ABI}/site-packages /usr/local/lib/python${PYTHON_ABI}/site-packages
 RUN ldconfig && \
@@ -143,6 +175,7 @@ ENV LD_LIBRARY_PATH=/usr/local/lib \
     PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
 COPY --from=runtime-libs /runtime-libs/ /
+COPY --from=runtime-libs /sbom-meta/ /
 COPY --from=gtsam-build /usr/local/lib/lib*gtsam* /usr/local/lib/
 COPY --from=gtsam-build /usr/local/lib/python${PYTHON_ABI}/site-packages /usr/local/lib/python${PYTHON_ABI}/site-packages
 RUN ldconfig && \
@@ -156,9 +189,11 @@ ENV LD_LIBRARY_PATH=/usr/local/lib \
     PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
 COPY --from=runtime-libs /runtime-libs/ /
+COPY --from=runtime-libs /sbom-meta/apk-fragment /tmp/apk-fragment
 COPY --from=gtsam-build /usr/local/lib/lib*gtsam* /usr/local/lib/
 COPY --from=gtsam-build /usr/local/lib/python${PYTHON_ABI}/site-packages /usr/local/lib/python${PYTHON_ABI}/site-packages
-RUN find /usr/local -type d -name '__pycache__' -prune -exec rm -rf {} + && \
+RUN { printf '\n'; cat /tmp/apk-fragment; } >> /lib/apk/db/installed && rm -f /tmp/apk-fragment && \
+    find /usr/local -type d -name '__pycache__' -prune -exec rm -rf {} + && \
     find /usr/local -type f -name '*.a' -delete
 CMD ["python3"]
 
@@ -181,6 +216,7 @@ ENV LD_LIBRARY_PATH=/usr/local/lib \
     PYTHONUNBUFFERED=1
 COPY --from=distroless-rootfs /rootfs /
 COPY --from=runtime-libs /runtime-libs/ /
+COPY --from=runtime-libs /sbom-meta/ /
 COPY --from=gtsam-build /usr/local/lib/lib*gtsam* /usr/local/lib/
 COPY --from=gtsam-build /usr/local/lib/python${PYTHON_ABI}/site-packages /usr/local/lib/python${PYTHON_ABI}/site-packages
 CMD ["/usr/local/bin/python3"]
