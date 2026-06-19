@@ -4,6 +4,12 @@ on:
   pull_request:
     branches: [main, development]
 
+# Cancel any in-progress run for the same PR when a new commit is pushed.
+# head_ref is the PR source branch; ref is the fallback for non-PR triggers.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
+
 env:
   REGISTRY: ghcr.io
 
