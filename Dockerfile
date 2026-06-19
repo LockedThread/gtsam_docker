@@ -25,6 +25,11 @@ RUN git clone --quiet --depth 1 --branch "${GTSAM_VERSION}" https://github.com/b
 FROM ${PYTHON_BUILD_IMAGE} AS gtsam-build
 ARG GTSAM_VERSION
 ARG NUMPY_SPEC
+# Opt this stage into BuildKit SBOM scanning. GTSAM is compiled from source and
+# links Debian/Alpine Boost, TBB and Eigen packages that leave no metadata in
+# the final runtime image; scanning the build stage records that provenance in
+# the SBOM attestation alongside the runtime stage's own scan.
+ARG BUILDKIT_SBOM_SCAN_STAGE=true
 ENV LD_LIBRARY_PATH=/usr/local/lib \
     PIP_NO_CACHE_DIR=1 \
     PYTHONDONTWRITEBYTECODE=1 \
