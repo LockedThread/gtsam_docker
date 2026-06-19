@@ -108,6 +108,7 @@ RUN apk add -q --no-cache \
     boost1.84-regex \
     boost1.84-serialization \
     boost1.84-system \
+    boost1.84-thread \
     boost1.84-timer \
     ca-certificates \
     libgcc \
