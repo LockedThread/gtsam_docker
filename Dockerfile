@@ -90,7 +90,7 @@ ARG PYTHON_ABI
 ENV LD_LIBRARY_PATH=/usr/local/lib \
     PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
-COPY --from=gtsam-build /usr/local/lib/libgtsam* /usr/local/lib/
+COPY --from=gtsam-build /usr/local/lib/lib*gtsam* /usr/local/lib/
 COPY --from=gtsam-build /usr/local/lib/python${PYTHON_ABI}/site-packages /usr/local/lib/python${PYTHON_ABI}/site-packages
 RUN ldconfig && \
     find /usr/local -type d -name '__pycache__' -prune -exec rm -rf {} + && \
@@ -102,7 +102,7 @@ ARG PYTHON_ABI
 ENV LD_LIBRARY_PATH=/usr/local/lib \
     PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
-COPY --from=gtsam-build /usr/local/lib/libgtsam* /usr/local/lib/
+COPY --from=gtsam-build /usr/local/lib/lib*gtsam* /usr/local/lib/
 COPY --from=gtsam-build /usr/local/lib/python${PYTHON_ABI}/site-packages /usr/local/lib/python${PYTHON_ABI}/site-packages
 RUN ldconfig && \
     find /usr/local -type d -name '__pycache__' -prune -exec rm -rf {} + && \
@@ -114,7 +114,7 @@ ARG PYTHON_ABI
 ENV LD_LIBRARY_PATH=/usr/local/lib \
     PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
-COPY --from=gtsam-build /usr/local/lib/libgtsam* /usr/local/lib/
+COPY --from=gtsam-build /usr/local/lib/lib*gtsam* /usr/local/lib/
 COPY --from=gtsam-build /usr/local/lib/python${PYTHON_ABI}/site-packages /usr/local/lib/python${PYTHON_ABI}/site-packages
 RUN find /usr/local -type d -name '__pycache__' -prune -exec rm -rf {} + && \
     find /usr/local -type f -name '*.a' -delete
@@ -147,7 +147,7 @@ ENV LD_LIBRARY_PATH=/usr/local/lib \
     PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
 COPY --from=distroless-rootfs /rootfs /
-COPY --from=gtsam-build /usr/local/lib/libgtsam* /usr/local/lib/
+COPY --from=gtsam-build /usr/local/lib/lib*gtsam* /usr/local/lib/
 COPY --from=gtsam-build /usr/local/lib/python${PYTHON_ABI}/site-packages /usr/local/lib/python${PYTHON_ABI}/site-packages
 CMD ["/usr/local/bin/python3"]
 
