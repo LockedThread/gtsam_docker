@@ -17,7 +17,7 @@ ARG PYTHON_RUNTIME_TRIXIE_IMAGE=python-runtime:py3.14-glibc-trixie
 ARG PYTHON_RUNTIME_SLIM_IMAGE=python-runtime:py3.14-glibc-trixie-slim
 ARG PYTHON_RUNTIME_ALPINE_IMAGE=python-runtime:py3.14-musl-alpine
 
-FROM alpine/git:2.52.0 AS gtsam-source
+FROM alpine/git:2.52.0@sha256:4a0e72d49596a1f5d3701aeedafdadc5c0da4062be4657c7bdc4017387f591cc AS gtsam-source
 ARG GTSAM_VERSION
 WORKDIR /usr/src
 RUN git clone --quiet --depth 1 --branch "${GTSAM_VERSION}" https://github.com/borglab/gtsam.git
@@ -85,11 +85,38 @@ RUN set -eu; \
     rm -rf /usr/src/gtsam /tmp/* /var/tmp/*
 CMD ["python3"]
 
+# Collect the exact set of third-party shared libraries the built GTSAM
+# extensions link against (Boost, TBB, libstdc++, libgcc, ...), resolved
+# dynamically via ldd so the list cannot drift when a base image bumps a
+# Boost/TBB SONAME. Core libc/loader libraries are skipped because every
+# runtime base already provides them. Original paths are preserved so the
+# loader finds them with no ldconfig (needed for distroless).
+FROM gtsam-build AS runtime-libs
+RUN set -eu; \
+    mkdir -p /runtime-libs; \
+    targets="$(find /usr/local/lib -maxdepth 1 -name 'lib*gtsam*.so*' 2>/dev/null; \
+               find /usr/local/lib/python*/site-packages/gtsam* -name '*.so' 2>/dev/null)"; \
+    for so in $targets; do ldd "$so" 2>/dev/null || true; done \
+      | awk '/=> \// {print $3}' | sort -u \
+      | while IFS= read -r dep; do \
+          [ -n "$dep" ] || continue; \
+          case "$dep" in \
+            /usr/local/*) continue ;; \
+            */ld-linux*|*/ld-musl*|*/libc.so*|*/libm.so*|*/libdl.so*|*/libpthread.so*|*/librt.so*|*/libresolv.so*|*/libutil.so*) continue ;; \
+          esac; \
+          [ -e "$dep" ] || continue; \
+          real="$(readlink -f "$dep")"; \
+          dest="/runtime-libs$(dirname "$real")"; \
+          mkdir -p "$dest"; \
+          cp "$real" "$dest/$(basename "$dep")"; \
+        done
+
 FROM ${PYTHON_RUNTIME_TRIXIE_IMAGE} AS runtime-trixie
 ARG PYTHON_ABI
 ENV LD_LIBRARY_PATH=/usr/local/lib \
     PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
+COPY --from=runtime-libs /runtime-libs/ /
 COPY --from=gtsam-build /usr/local/lib/lib*gtsam* /usr/local/lib/
 COPY --from=gtsam-build /usr/local/lib/python${PYTHON_ABI}/site-packages /usr/local/lib/python${PYTHON_ABI}/site-packages
 RUN ldconfig && \
@@ -102,6 +129,7 @@ ARG PYTHON_ABI
 ENV LD_LIBRARY_PATH=/usr/local/lib \
     PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
+COPY --from=runtime-libs /runtime-libs/ /
 COPY --from=gtsam-build /usr/local/lib/lib*gtsam* /usr/local/lib/
 COPY --from=gtsam-build /usr/local/lib/python${PYTHON_ABI}/site-packages /usr/local/lib/python${PYTHON_ABI}/site-packages
 RUN ldconfig && \
@@ -114,39 +142,32 @@ ARG PYTHON_ABI
 ENV LD_LIBRARY_PATH=/usr/local/lib \
     PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
+COPY --from=runtime-libs /runtime-libs/ /
 COPY --from=gtsam-build /usr/local/lib/lib*gtsam* /usr/local/lib/
 COPY --from=gtsam-build /usr/local/lib/python${PYTHON_ABI}/site-packages /usr/local/lib/python${PYTHON_ABI}/site-packages
 RUN find /usr/local -type d -name '__pycache__' -prune -exec rm -rf {} + && \
     find /usr/local -type f -name '*.a' -delete
 CMD ["python3"]
 
+# The distroless base has no package manager, so stage the CPython interpreter
+# (installed under /usr/local in the python base image) plus CA certificates.
+# Third-party shared libs come from the runtime-libs collector below.
 FROM ${PYTHON_RUNTIME_SLIM_IMAGE} AS distroless-rootfs
 RUN set -eu; \
-    mkdir -p /rootfs; \
-    cp -a /usr/local /rootfs/usr-local; \
     mkdir -p /rootfs/usr/local; \
-    cp -a /rootfs/usr-local/. /rootfs/usr/local/; \
-    rm -rf /rootfs/usr-local; \
-    for lib in \
-      /usr/lib/*/libboost_*.so* \
-      /usr/lib/*/libtbb*.so* \
-      /usr/lib/*/libgomp*.so* \
-      /usr/lib/*/libstdc++.so* \
-      /usr/lib/*/libgcc_s.so*; do \
-      [ -e "$lib" ] || continue; \
-      cp -a --parents "$lib" /rootfs; \
-    done; \
+    cp -a /usr/local/. /rootfs/usr/local/; \
     mkdir -p /rootfs/etc/ssl; \
     cp -a /etc/ssl/certs /rootfs/etc/ssl/certs; \
     find /rootfs/usr/local -type d -name '__pycache__' -prune -exec rm -rf {} +; \
     find /rootfs/usr/local -type f -name '*.a' -delete
 
-FROM gcr.io/distroless/cc-debian13 AS runtime-distroless
+FROM gcr.io/distroless/cc-debian13@sha256:a017e74bd2a12d98342dbecd33d121d2b160415ed777573dc1808969e989d94d AS runtime-distroless
 ARG PYTHON_ABI
 ENV LD_LIBRARY_PATH=/usr/local/lib \
     PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
 COPY --from=distroless-rootfs /rootfs /
+COPY --from=runtime-libs /runtime-libs/ /
 COPY --from=gtsam-build /usr/local/lib/lib*gtsam* /usr/local/lib/
 COPY --from=gtsam-build /usr/local/lib/python${PYTHON_ABI}/site-packages /usr/local/lib/python${PYTHON_ABI}/site-packages
 CMD ["/usr/local/bin/python3"]
