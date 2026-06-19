@@ -29,20 +29,26 @@ ENV LD_LIBRARY_PATH=/usr/local/lib \
     PIP_NO_CACHE_DIR=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    PYTHONUSERBASE=/usr/local
+    PYTHONUSERBASE=/usr/local \
+    PIP_CONSTRAINT=/etc/pip-constraints.txt
+COPY ci/requirements-build.txt /etc/pip-constraints.txt
 COPY --from=gtsam-source /usr/src/gtsam /usr/src/gtsam
 WORKDIR /usr/src/gtsam/build
+# numpy major is an ABI choice tied to the GTSAM version, so it stays a range
+# here (verified at runtime by validate_numpy_abi.py). Everything else
+# (pyparsing, pybind11_stubgen, pip/setuptools/wheel) is version-pinned via
+# the PIP_CONSTRAINT file above.
 RUN set -eu; \
     resolved_numpy_spec="${NUMPY_SPEC}"; \
-    resolved_pybind11_stubgen_spec=""; \
+    resolved_pybind11_stubgen=""; \
     if [ -z "$resolved_numpy_spec" ]; then \
       case "$GTSAM_VERSION" in \
-        4.3*) resolved_numpy_spec="numpy>=2,<3"; resolved_pybind11_stubgen_spec="pybind11_stubgen==2.5.5" ;; \
-        *) resolved_numpy_spec="numpy<2"; resolved_pybind11_stubgen_spec="" ;; \
+        4.3*) resolved_numpy_spec="numpy>=2,<3"; resolved_pybind11_stubgen="pybind11_stubgen" ;; \
+        *) resolved_numpy_spec="numpy<2" ;; \
       esac; \
     fi; \
-    python3 -m pip install -q --no-cache-dir --upgrade -r /usr/src/gtsam/python/requirements.txt; \
-    python3 -m pip install -q --no-cache-dir --upgrade "pyparsing>=2.4" "$resolved_numpy_spec" "$resolved_pybind11_stubgen_spec";
+    python3 -m pip install -q --no-cache-dir -r /usr/src/gtsam/python/requirements.txt; \
+    python3 -m pip install -q --no-cache-dir pyparsing "$resolved_numpy_spec" $resolved_pybind11_stubgen;
 RUN set -eu; \
     cmake_log=/tmp/gtsam-cmake-configure.log; \
     python_exe="$(command -v python3)"; \

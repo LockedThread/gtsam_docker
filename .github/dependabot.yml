@@ -20,6 +20,22 @@ updates:
       - "dependencies"
       - "docker"
 
+  # Pinned build-time Python toolchain (ci/requirements-build.txt).
+  - package-ecosystem: "pip"
+    directory: "/ci"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    groups:
+      python-build-tools:
+        patterns:
+          - "*"
+    commit-message:
+      prefix: "pip"
+    labels:
+      - "dependencies"
+      - "python"
+
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
