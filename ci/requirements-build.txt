@@ -1,0 +1,15 @@
+# Pinned build-time Python toolchain, applied via PIP_CONSTRAINT in the
+# Dockerfile build stages. These constraints pin versions without forcing
+# installation, so they layer on top of GTSAM's own python/requirements.txt
+# and the per-version numpy policy (numpy<2 for 4.2, numpy>=2,<3 for 4.3).
+#
+# numpy is intentionally NOT pinned here: its major is an ABI contract chosen
+# per GTSAM version at build time and verified at runtime by validate_numpy_abi.py.
+#
+# Dependabot (pip ecosystem, see .github/dependabot.yml) bumps these via PRs
+# that the build-and-validate matrix gates before merge.
+pip==26.1.2
+setuptools==82.0.1
+wheel==0.47.0
+pyparsing==3.3.2
+pybind11_stubgen==2.5.5

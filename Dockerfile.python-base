@@ -39,6 +39,8 @@ RUN apt-get update -qq && apt-get install -qq -y --no-install-recommends \
     pkg-config \
     > /dev/null && rm -rf /var/lib/apt/lists/*
 WORKDIR /usr/src
+COPY ci/requirements-build.txt /etc/pip-constraints.txt
+ENV PIP_CONSTRAINT=/etc/pip-constraints.txt
 RUN python3 -m pip install -q --no-cache-dir --upgrade pip setuptools wheel
 
 # Runtime bases intentionally ship only CA certs. GTSAM's third-party shared
@@ -85,6 +87,8 @@ RUN apk add -q --no-cache \
     pkgconf \
     onetbb-dev
 WORKDIR /usr/src
+COPY ci/requirements-build.txt /etc/pip-constraints.txt
+ENV PIP_CONSTRAINT=/etc/pip-constraints.txt
 RUN python3 -m pip install -q --no-cache-dir --upgrade pip setuptools wheel
 
 FROM python:${PYTHON_VERSION}-${PYTHON_ALPINE_VARIANT} AS python-runtime-musl-alpine
