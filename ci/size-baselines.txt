@@ -1,0 +1,3 @@
+# Runtime image size baselines are added after the first full successful publish.
+# Format:
+# gtsam<version>-py<version>-<runtime-base> <size-bytes>

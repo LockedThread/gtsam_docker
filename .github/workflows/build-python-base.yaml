@@ -1,29 +1,54 @@
-name: Build Python Base Image
+name: Build Python Base Images
 
 on:
   workflow_dispatch:
     inputs:
       python_version:
-        description: "Python version to build"
-        required: true
-        default: "3.11.2"
+        description: "Optional single Python minor version to build, e.g. 3.14"
+        required: false
+        default: ""
   push:
     paths:
       - "Dockerfile.python-base"
+      - ".github/workflows/build-python-base.yaml"
     branches:
       - main
       - development
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}/python-base
 
 jobs:
   build:
     strategy:
+      fail-fast: false
       matrix:
-        platform: ["linux/amd64", "linux/arm64"]
-    runs-on: ${{ matrix.platform == 'linux/arm64' && 'ubuntu-24.04-arm' || 'ubuntu-latest' }}
+        python_version: ["3.11", "3.12", "3.13", "3.14"]
+        platform:
+          - platform: linux/amd64
+            arch: amd64
+            runner: ubuntu-latest
+          - platform: linux/arm64
+            arch: arm64
+            runner: ubuntu-24.04-arm
+        base:
+          - image: python-build
+            target: python-build-glibc
+            suffix: glibc-trixie
+          - image: python-runtime
+            target: python-runtime-glibc-trixie
+            suffix: glibc-trixie
+          - image: python-runtime
+            target: python-runtime-glibc-slim
+            suffix: glibc-trixie-slim
+          - image: python-build
+            target: python-build-musl
+            suffix: musl-alpine
+          - image: python-runtime
+            target: python-runtime-musl-alpine
+            suffix: musl-alpine
+    if: ${{ inputs.python_version == '' || inputs.python_version == matrix.python_version }}
+    runs-on: ${{ matrix.platform.runner }}
     permissions:
       contents: read
       packages: write
@@ -41,37 +66,24 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Set Python version
-        id: python
+      - name: Normalize image name
+        id: image
         run: |
-          # Use input if provided, otherwise extract from Dockerfile.python-base
-          if [ -n "${{ inputs.python_version }}" ]; then
-            echo "version=${{ inputs.python_version }}" >> $GITHUB_OUTPUT
-          else
-            VERSION=$(grep -oP 'ARG PYTHON_VERSION=\K[0-9.]+' Dockerfile.python-base)
-            echo "version=${VERSION}" >> $GITHUB_OUTPUT
-          fi
+          repo="${GITHUB_REPOSITORY,,}"
+          echo "name=${REGISTRY}/${repo}/${{ matrix.base.image }}" >> "$GITHUB_OUTPUT"
 
-      - name: Extract Docker metadata
-        id: meta
-        uses: docker/metadata-action@v6
-        with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
-          tags: |
-            type=raw,value=${{ steps.python.outputs.version }}-trixie-${{ matrix.platform == 'linux/amd64' && 'amd64' || 'arm64' }}
-
-      - name: Build and push Python base image for ${{ matrix.platform }}
+      - name: Build and push ${{ matrix.base.image }} (${{ matrix.python_version }}, ${{ matrix.base.suffix }}, ${{ matrix.platform.arch }})
         uses: docker/build-push-action@v7
         with:
           context: .
           file: Dockerfile.python-base
+          target: ${{ matrix.base.target }}
           push: true
           provenance: false
-          platforms: ${{ matrix.platform }}
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
+          platforms: ${{ matrix.platform.platform }}
+          tags: ${{ steps.image.outputs.name }}:py${{ matrix.python_version }}-${{ matrix.base.suffix }}-${{ matrix.platform.arch }}
           build-args: |
-            PYTHON_VERSION=${{ steps.python.outputs.version }}
+            PYTHON_VERSION=${{ matrix.python_version }}
 
   manifest:
     needs: build
@@ -79,10 +91,23 @@ jobs:
     permissions:
       contents: read
       packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        python_version: ["3.11", "3.12", "3.13", "3.14"]
+        base:
+          - image: python-build
+            suffix: glibc-trixie
+          - image: python-runtime
+            suffix: glibc-trixie
+          - image: python-runtime
+            suffix: glibc-trixie-slim
+          - image: python-build
+            suffix: musl-alpine
+          - image: python-runtime
+            suffix: musl-alpine
+    if: ${{ inputs.python_version == '' || inputs.python_version == matrix.python_version }}
     steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-
       - name: Log into registry ${{ env.REGISTRY }}
         uses: docker/login-action@v4
         with:
@@ -90,28 +115,13 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Set Python version
-        id: python
-        run: |
-          if [ -n "${{ inputs.python_version }}" ]; then
-            echo "version=${{ inputs.python_version }}" >> $GITHUB_OUTPUT
-          else
-            VERSION=$(grep -oP 'ARG PYTHON_VERSION=\K[0-9.]+' Dockerfile.python-base)
-            echo "version=${VERSION}" >> $GITHUB_OUTPUT
-          fi
-
       - name: Create multi-arch manifest
         run: |
-          LOWER_IMAGE_NAME=$(echo "${IMAGE_NAME}" | tr '[:upper:]' '[:lower:]')
-          PYTHON_VERSION="${{ steps.python.outputs.version }}"
-          
-          docker manifest create $REGISTRY/${LOWER_IMAGE_NAME}:${PYTHON_VERSION}-trixie \
-            $REGISTRY/${LOWER_IMAGE_NAME}:${PYTHON_VERSION}-trixie-amd64 \
-            $REGISTRY/${LOWER_IMAGE_NAME}:${PYTHON_VERSION}-trixie-arm64
-          docker manifest push $REGISTRY/${LOWER_IMAGE_NAME}:${PYTHON_VERSION}-trixie
-          
-          # Also tag as latest
-          docker manifest create $REGISTRY/${LOWER_IMAGE_NAME}:latest \
-            $REGISTRY/${LOWER_IMAGE_NAME}:${PYTHON_VERSION}-trixie-amd64 \
-            $REGISTRY/${LOWER_IMAGE_NAME}:${PYTHON_VERSION}-trixie-arm64
-          docker manifest push $REGISTRY/${LOWER_IMAGE_NAME}:latest
+          set -euo pipefail
+          repo="${GITHUB_REPOSITORY,,}"
+          image="${REGISTRY}/${repo}/${{ matrix.base.image }}"
+          tag="py${{ matrix.python_version }}-${{ matrix.base.suffix }}"
+          docker manifest create "$image:$tag" \
+            "$image:$tag-amd64" \
+            "$image:$tag-arm64"
+          docker manifest push "$image:$tag"
