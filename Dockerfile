@@ -17,7 +17,7 @@ ARG PYTHON_RUNTIME_TRIXIE_IMAGE=python-runtime:py3.14-glibc-trixie
 ARG PYTHON_RUNTIME_SLIM_IMAGE=python-runtime:py3.14-glibc-trixie-slim
 ARG PYTHON_RUNTIME_ALPINE_IMAGE=python-runtime:py3.14-musl-alpine
 
-FROM alpine/git:v2.54.0@sha256:113d99116e236f93f0b1f53cd46dbda662cf1136d20dc9ae2834962226654d9f AS gtsam-source
+FROM alpine/git:v2.54.0@sha256:6f8eae2205a85c51106a9650e574a37fb1d5e4f645e5f6ea57cb57b9462cd4cf AS gtsam-source
 ARG GTSAM_VERSION
 WORKDIR /usr/src
 RUN git clone --quiet --depth 1 --branch "${GTSAM_VERSION}" https://github.com/borglab/gtsam.git
@@ -89,7 +89,10 @@ RUN set -eu; \
     cmake --build . --target install -- -s; \
     cmake --build . --target python-install -- -s; \
     find /usr/local -type f \( -name '*.so' -o -name '*.so.*' \) -exec strip --strip-unneeded {} + 2>/dev/null || true; \
-    find /usr/local -type f -name '*.a' -delete; \
+    # GTSAM-exports.cmake declares CppUnitLite even when downstream projects
+    # only link gtsam. Keep that one archive so CMake can validate the
+    # exported package in the full development image.
+    find /usr/local -type f -name '*.a' ! -name 'libCppUnitLite.a' -delete; \
     python_site="$(python3 -c 'import site; print(site.getsitepackages()[0])')"; \
     for pkg in pip setuptools wheel packaging pytest _pytest pluggy iniconfig pygments py pybind11_stubgen; do \
       rm -rf "$python_site/$pkg" "$python_site/$pkg".* "$python_site/$pkg"-*.dist-info; \
@@ -162,11 +165,19 @@ ENV LD_LIBRARY_PATH=/usr/local/lib \
     PYTHONUNBUFFERED=1
 COPY --from=runtime-libs /runtime-libs/ /
 COPY --from=runtime-libs /sbom-meta/ /
+# The full trixie image is also the supported native-extension build base.
+# Keep the headers and exported CMake package together with the exact GTSAM
+# shared libraries and Python bindings so downstream extensions compile and
+# link against the same ABI as the runtime they will be copied into.
+COPY --from=gtsam-build /usr/local/include/gtsam /usr/local/include/gtsam
+COPY --from=gtsam-build /usr/local/include/gtsam_unstable /usr/local/include/gtsam_unstable
+COPY --from=gtsam-build /usr/local/lib/cmake/GTSAM /usr/local/lib/cmake/GTSAM
+COPY --from=gtsam-build /usr/local/lib/libCppUnitLite.a /usr/local/lib/libCppUnitLite.a
 COPY --from=gtsam-build /usr/local/lib/lib*gtsam* /usr/local/lib/
 COPY --from=gtsam-build /usr/local/lib/python${PYTHON_ABI}/site-packages /usr/local/lib/python${PYTHON_ABI}/site-packages
 RUN ldconfig && \
     find /usr/local -type d -name '__pycache__' -prune -exec rm -rf {} + && \
-    find /usr/local -type f -name '*.a' -delete
+    find /usr/local -type f -name '*.a' ! -name 'libCppUnitLite.a' -delete
 CMD ["python3"]
 
 FROM ${PYTHON_RUNTIME_SLIM_IMAGE} AS runtime-trixie-slim
@@ -209,7 +220,7 @@ RUN set -eu; \
     find /rootfs/usr/local -type d -name '__pycache__' -prune -exec rm -rf {} +; \
     find /rootfs/usr/local -type f -name '*.a' -delete
 
-FROM gcr.io/distroless/cc-debian13@sha256:a017e74bd2a12d98342dbecd33d121d2b160415ed777573dc1808969e989d94d AS runtime-distroless
+FROM gcr.io/distroless/cc-debian13@sha256:9b615fff20e1a4fad29c2b30562580b212c7dd5e2225236735cca0070ed11c78 AS runtime-distroless
 ARG PYTHON_ABI
 ENV LD_LIBRARY_PATH=/usr/local/lib \
     PYTHONDONTWRITEBYTECODE=1 \

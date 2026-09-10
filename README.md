@@ -20,6 +20,11 @@ Default matrix axes:
 
 `latest` remains a compatibility alias for the default Debian slim runtime: `gtsam4.3a1-py3.14-trixie-slim`.
 
+The full Debian `trixie` runtime also serves as the native-extension build
+image. It includes the GTSAM headers and `/usr/local/lib/cmake/GTSAM` package
+from the same build as its shared libraries. Use the `trixie-slim`, distroless,
+or Alpine variants when only the Python/runtime ABI is needed.
+
 ## Local build
 
 Build a local Python base, then build a GTSAM runtime from it:
