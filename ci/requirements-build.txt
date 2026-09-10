@@ -9,7 +9,7 @@
 # Dependabot (pip ecosystem, see .github/dependabot.yml) bumps these via PRs
 # that the build-and-validate matrix gates before merge.
 pip==26.1.2
-setuptools==82.0.1
+setuptools==83.0.0
 wheel==0.47.0
 pyparsing==3.3.2
 pybind11_stubgen==2.5.5
