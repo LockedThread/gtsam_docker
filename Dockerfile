@@ -89,7 +89,10 @@ RUN set -eu; \
     cmake --build . --target install -- -s; \
     cmake --build . --target python-install -- -s; \
     find /usr/local -type f \( -name '*.so' -o -name '*.so.*' \) -exec strip --strip-unneeded {} + 2>/dev/null || true; \
-    find /usr/local -type f -name '*.a' -delete; \
+    # GTSAM-exports.cmake declares CppUnitLite even when downstream projects
+    # only link gtsam. Keep that one archive so CMake can validate the
+    # exported package in the full development image.
+    find /usr/local -type f -name '*.a' ! -name 'libCppUnitLite.a' -delete; \
     python_site="$(python3 -c 'import site; print(site.getsitepackages()[0])')"; \
     for pkg in pip setuptools wheel packaging pytest _pytest pluggy iniconfig pygments py pybind11_stubgen; do \
       rm -rf "$python_site/$pkg" "$python_site/$pkg".* "$python_site/$pkg"-*.dist-info; \
@@ -169,11 +172,12 @@ COPY --from=runtime-libs /sbom-meta/ /
 COPY --from=gtsam-build /usr/local/include/gtsam /usr/local/include/gtsam
 COPY --from=gtsam-build /usr/local/include/gtsam_unstable /usr/local/include/gtsam_unstable
 COPY --from=gtsam-build /usr/local/lib/cmake/GTSAM /usr/local/lib/cmake/GTSAM
+COPY --from=gtsam-build /usr/local/lib/libCppUnitLite.a /usr/local/lib/libCppUnitLite.a
 COPY --from=gtsam-build /usr/local/lib/lib*gtsam* /usr/local/lib/
 COPY --from=gtsam-build /usr/local/lib/python${PYTHON_ABI}/site-packages /usr/local/lib/python${PYTHON_ABI}/site-packages
 RUN ldconfig && \
     find /usr/local -type d -name '__pycache__' -prune -exec rm -rf {} + && \
-    find /usr/local -type f -name '*.a' -delete
+    find /usr/local -type f -name '*.a' ! -name 'libCppUnitLite.a' -delete
 CMD ["python3"]
 
 FROM ${PYTHON_RUNTIME_SLIM_IMAGE} AS runtime-trixie-slim
