@@ -162,6 +162,13 @@ ENV LD_LIBRARY_PATH=/usr/local/lib \
     PYTHONUNBUFFERED=1
 COPY --from=runtime-libs /runtime-libs/ /
 COPY --from=runtime-libs /sbom-meta/ /
+# The full trixie image is also the supported native-extension build base.
+# Keep the headers and exported CMake package together with the exact GTSAM
+# shared libraries and Python bindings so downstream extensions compile and
+# link against the same ABI as the runtime they will be copied into.
+COPY --from=gtsam-build /usr/local/include/gtsam /usr/local/include/gtsam
+COPY --from=gtsam-build /usr/local/include/gtsam_unstable /usr/local/include/gtsam_unstable
+COPY --from=gtsam-build /usr/local/lib/cmake/GTSAM /usr/local/lib/cmake/GTSAM
 COPY --from=gtsam-build /usr/local/lib/lib*gtsam* /usr/local/lib/
 COPY --from=gtsam-build /usr/local/lib/python${PYTHON_ABI}/site-packages /usr/local/lib/python${PYTHON_ABI}/site-packages
 RUN ldconfig && \
