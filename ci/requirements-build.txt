@@ -11,5 +11,5 @@
 pip==26.2.1
 setuptools==84.0.0
 wheel==0.48.0
-pyparsing==3.3.2
-pybind11_stubgen==2.5.5
+pyparsing==3.3.3
+pybind11_stubgen==3.0.0
